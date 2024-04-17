@@ -9,6 +9,15 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+type Mode uint8
+
+const (
+	Replace Mode = iota
+	Add
+)
+
+const mode = Replace
+
 var json = jsoniter.ConfigFastest
 
 var client = fasthttp.Client{
@@ -63,6 +72,12 @@ func DownloadFile(token, document, base string) {
 	if err != nil {
 		log.Println("error decoding file viewer: ", err, string(data))
 		return
+	}
+	if mode == Add {
+		if _, err = os.Stat(base + vd.Asset.Filename); err == nil {
+			log.Println("skipping", vd.Asset.Filename)
+			return
+		}
 	}
 
 	req.SetRequestURI("https://brand.supercell.com/api/screen/download/" + token)
@@ -122,7 +137,6 @@ func DownloadAll(folder, id string) {
 		return
 	}
 
-	log.Printf("Downloading %d files from %s\n", sd.Total, folder)
 	req.SetRequestURI(fmt.Sprintf("https://fankit.supercell.com/api/assets/search/%s?limit=%d", id, sd.Total))
 
 	err = client.Do(req, resp)
@@ -143,10 +157,12 @@ func DownloadAll(folder, id string) {
 		return
 	}
 
+	log.Printf("Downloading %d files from %s\n", len(sd.Data), folder)
 	folder += "/"
 	for _, file := range sd.Data {
 		DownloadFile(file.Token, id, folder) // don't spawn goroutine for higher stability, otherwise a lot of connections were failing
 	}
+	log.Println(folder, "is done")
 }
 
 func main() {
